@@ -1,0 +1,57 @@
+name: Backend CI/CD
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  test_and_deploy:
+    # if your EC2 self-hosted runner is installed, keep this line:
+    runs-on: self-hosted
+    # if you DON'T have the runner yet, temporarily use:
+    # runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Stop PM2 apps (ignore errors)
+        run: pm2 stop all || true
+
+      - name: Install backend deps
+        working-directory: backend
+        run: npm ci || npm install
+
+      - name: Run backend tests
+        working-directory: backend
+        env:
+          MONGO_URI: ${{ secrets.MONGO_URI }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          PORT: ${{ secrets.PORT }}
+        run: npm test
+
+      - name: Write .env for server
+        working-directory: backend
+        run: |
+          cat > .env <<'EOF'
+          MONGO_URI=${{ secrets.MONGO_URI }}
+          JWT_SECRET=${{ secrets.JWT_SECRET }}
+          PORT=${{ secrets.PORT }}
+          EOF
+
+      - name: Restart API with PM2
+        working-directory: backend
+        run: |
+          pm2 describe smartwaste-api >/dev/null 2>&1 && \
+            pm2 restart smartwaste-api || pm2 start "npm start" --name smartwaste-api
+          pm2 save
+cd backend
+npm i -D mocha chai sinon
+            
